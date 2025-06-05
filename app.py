@@ -79,8 +79,7 @@ with st.form("formulaire_calcul"):
         with st.spinner("🛰️ Calcul en cours..."):
             dist, duree, coord_dep, coord_arr, route = get_distance_duration(adresse_dep, adresse_arr)
             cout_total, cout_palette = calcul_cout_transport(dist, duree, nb_palettes_form)
-
-  cout_total, cout_palette, duree_totale = calcul_cout_transport(dist, duree, nb_palettes_form)
+            cout_total, cout_palette, duree_totale = calcul_cout_transport(dist, duree, nb_palettes_form)
 
 if dist is not None:
     st.success("✅ Calcul terminé")
