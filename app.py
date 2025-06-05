@@ -65,16 +65,19 @@ with st.form("formulaire_calcul"):
             dist, duree, coord_dep, coord_arr, route = get_distance_duration(adresse_dep, adresse_arr)
             cout_total, cout_palette = calcul_cout_transport(dist, duree, nb_palettes_form)
 
-        if dist is not None:
-            st.success("✅ Calcul terminé")
-            st.markdown(f"""
-                - **Adresse départ** : {adresse_dep}  
-                - **Adresse arrivée** : {adresse_arr}  
-                - **Distance** : {dist} km  
-                - **Durée estimée** : {duree} h  
-                - **Coût total** : {cout_total} €  
-                - **Coût par palette** : {cout_palette} €
-            """)
+       if dist is not None:
+    duree_vitesse_moyenne = round(dist / 75, 2)  # durée recalculée avec vitesse moyenne 75km/h
+    st.success("✅ Calcul terminé")
+    st.markdown(f"""
+        - **Adresse départ** : {adresse_dep}  
+        - **Adresse arrivée** : {adresse_arr}  
+        - **Distance** : {dist} km  
+        - **Durée estimée (API)** : {duree} h  
+        - **Durée recalculée (vitesse moyenne 75 km/h)** : {duree_vitesse_moyenne} h  
+        - **Coût total** : {cout_total} €  
+        - **Coût par palette** : {cout_palette} €
+    """)
+
 
             # Création de la carte folium centrée entre départ et arrivée
             midpoint = [(coord_dep[1] + coord_arr[1]) / 2, (coord_dep[0] + coord_arr[0]) / 2]
