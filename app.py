@@ -31,10 +31,10 @@ def get_distance_duration(dep, arr):
 def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
     if distance_km is None or duree_heure is None:
         return None, None
-    CK = 0.60  # €/km
-    CC = 28.96  # €/h
-    CJ = 211.72  # €/jour
-    CG = 3.05   # €/h
+    CK = 0.583  # €/km
+    CC = 30.33  # €/h
+    CJ = 250.63  # €/jour
+    CG = 2.48   # €/h
     cout_total = distance_km * CK + duree_heure * CC + CJ + duree_heure * CG
     cout_palette = cout_total / nb_palettes if nb_palettes > 0 else None
     return round(cout_total, 2), round(cout_palette, 2)
