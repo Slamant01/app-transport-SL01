@@ -14,16 +14,23 @@ client = openrouteservice.Client(key=ORS_API_KEY)
 
 def get_distance_duration(dep, arr):
     try:
-        coords = client.pelias_search(text=dep)['features'][0]['geometry']['coordinates']
-        coord_dep = coords[::-1]  # (lat, lon)
-        coords = client.pelias_search(text=arr)['features'][0]['geometry']['coordinates']
-        coord_arr = coords[::-1]
-        route = client.directions((coord_dep, coord_arr), profile='driving-hgv', format='geojson')
+        # Recherche des coordonnées
+        coord_dep = client.pelias_search(text=dep)['features'][0]['geometry']['coordinates']  # [lon, lat]
+        coord_arr = client.pelias_search(text=arr)['features'][0]['geometry']['coordinates']  # [lon, lat]
+
+        # Appel de l’API directions
+        route = client.directions(
+            coordinates=[coord_dep, coord_arr],
+            profile='driving-hgv',
+            format='geojson'
+        )
         distance_km = route['features'][0]['properties']['segments'][0]['distance'] / 1000
         duration_h = route['features'][0]['properties']['segments'][0]['duration'] / 3600
         return round(distance_km, 2), round(duration_h, 2)
-    except:
+    except Exception as e:
+        print("Erreur OpenRouteService :", e)
         return None, None
+
 
 
 def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
