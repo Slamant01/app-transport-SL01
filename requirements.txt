@@ -2,4 +2,3 @@ streamlit
 pandas
 openrouteservice
 folium
-streamlit-folium
