@@ -25,16 +25,18 @@ def get_coordinates(adresse):
         st.warning(f"Erreur lors du géocodage de '{adresse}' : {e}")
         return None
 
-def get_distance_duration(coord_dep, coord_arr):
+def get_distance_duration(dep, arr):
     try:
-        route = client.directions((coord_dep, coord_arr), profile='driving-hgv', format='geojson')
-        segment = route['features'][0]['properties']['segments'][0]
-        distance_km = segment['distance'] / 1000
-        duration_h = segment['duration'] / 3600
+        coord_dep = client.pelias_search(text=dep)['features'][0]['geometry']['coordinates']
+        coord_arr = client.pelias_search(text=arr)['features'][0]['geometry']['coordinates']
+        route = client.directions([coord_dep, coord_arr], profile='driving-hgv', format='geojson')
+        distance_km = route['features'][0]['properties']['segments'][0]['distance'] / 1000
+        duration_h = route['features'][0]['properties']['segments'][0]['duration'] / 3600
         return round(distance_km, 2), round(duration_h, 2)
     except Exception as e:
-        st.warning(f"Erreur lors du calcul de l'itinéraire : {e}")
+        st.error(f"Erreur lors du calcul de l'itinéraire : {e}")
         return None, None
+
 
 def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
     if distance_km is None or duree_heure is None:
