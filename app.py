@@ -25,6 +25,7 @@ def get_distance_duration(dep, arr):
     except:
         return None, None
 
+
 def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
     if distance_km is None or duree_heure is None:
         return None, None
