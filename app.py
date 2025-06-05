@@ -8,7 +8,8 @@ import time
 st.set_page_config(page_title="Calcul Coûts Transport", layout="wide")
 
 # Clé API OpenRouteService
-ORS_API_KEY = "5b3ce3597851110001cf6248d58111f8cb024403afb32d298d13d40e"
+import os
+ORS_API_KEY = os.getenv("ORS_API_KEY")
 client = openrouteservice.Client(key=ORS_API_KEY)
 
 def get_distance_duration(dep, arr):
