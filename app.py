@@ -12,14 +12,21 @@ client = openrouteservice.Client(key=ORS_API_KEY)
 
 def get_distance_duration(dep, arr):
     try:
+        # Recherche des coordonnées
         coord_dep = client.pelias_search(text=dep)['features'][0]['geometry']['coordinates']  # [lon, lat]
-        coord_arr = client.pelias_search(text=arr)['features'][0]['geometry']['coordinates']
-        route = client.directions([coord_dep, coord_arr], profile='driving-hgv', format='geojson')
+        coord_arr = client.pelias_search(text=arr)['features'][0]['geometry']['coordinates']  # [lon, lat]
+
+        # Appel de l’API directions
+        route = client.directions(
+            coordinates=[coord_dep, coord_arr],
+            profile='driving-hgv',
+            format='geojson'
+        )
         distance_km = route['features'][0]['properties']['segments'][0]['distance'] / 1000
         duration_h = route['features'][0]['properties']['segments'][0]['duration'] / 3600
         return round(distance_km, 2), round(duration_h, 2)
     except Exception as e:
-        st.error(f"Erreur lors du calcul de l'itinéraire : {e}")
+        print("Erreur OpenRouteService :", e)
         return None, None
 
 def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
@@ -34,31 +41,40 @@ def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
     return round(cout_total, 2), round(cout_palette, 2)
 
 st.title("🚚 Estimation des coûts de transport (Frigo LD_EA)")
+st.subheader("✍️ Calcul manuel d’un transport")
 
-with st.form("form_transport"):
-    pays_dep = st.text_input("Pays de départ", "France")
-    ville_dep = st.text_input("Ville de départ", "Givors")
-    cp_dep = st.text_input("Code postal de départ", "69700")
+with st.form("formulaire_calcul"):
+    col1, col2 = st.columns(2)
+    with col1:
+        pays_dep = st.text_input("Pays de départ", value="France")
+        ville_dep = st.text_input("Ville de départ", value="Givors")
+        cp_dep = st.text_input("Code postal départ", value="69700")
+    with col2:
+        pays_arr = st.text_input("Pays d'arrivée", value="France")
+        ville_arr = st.text_input("Ville d'arrivée", value="Le Luc")
+        cp_arr = st.text_input("Code postal arrivée", value="83340")
 
-    pays_arr = st.text_input("Pays d'arrivée", "France")
-    ville_arr = st.text_input("Ville d'arrivée", "Le Luc")
-    cp_arr = st.text_input("Code postal d'arrivée", "83340")
+    nb_palettes_form = st.number_input("Nombre de palettes", min_value=1, max_value=33, value=33)
 
-    nb_palettes = st.number_input("Nombre de palettes (1 à 33)", min_value=1, max_value=33, value=33)
+    submitted = st.form_submit_button("📍 Calculer le transport")
 
-    submitted = st.form_submit_button("Calculer")
+    if submitted:
+        adresse_dep = f"{cp_dep} {ville_dep}, {pays_dep}"
+        adresse_arr = f"{cp_arr} {ville_arr}, {pays_arr}"
 
-if submitted:
-    adresse_dep = f"{cp_dep} {ville_dep} {pays_dep}"
-    adresse_arr = f"{cp_arr} {ville_arr} {pays_arr}"
+        with st.spinner("🛰️ Calcul en cours..."):
+            dist, duree = get_distance_duration(adresse_dep, adresse_arr)
+            cout_total, cout_palette = calcul_cout_transport(dist, duree, nb_palettes_form)
 
-    distance, duree = get_distance_duration(adresse_dep, adresse_arr)
-    cout_total, cout_par_palette = calcul_cout_transport(distance, duree, nb_palettes)
-
-    if distance is not None and duree is not None:
-        st.write(f"**Distance:** {distance} km")
-        st.write(f"**Durée:** {duree} heures")
-        st.write(f"**Coût total estimé:** {cout_total} €")
-        st.write(f"**Coût par palette:** {cout_par_palette} €")
-    else:
-        st.error("Impossible de calculer l'itinéraire avec les adresses fournies. Veuillez vérifier les informations.")
+        if dist is not None:
+            st.success("✅ Calcul terminé")
+            st.markdown(f"""
+                - **Adresse départ** : {adresse_dep}  
+                - **Adresse arrivée** : {adresse_arr}  
+                - **Distance** : {dist} km  
+                - **Durée estimée** : {duree} h  
+                - **Coût total** : {cout_total} €  
+                - **Coût par palette** : {cout_palette} €
+            """)
+        else:
+            st.error("❌ Adresse non reconnue. Merci de vérifier les informations saisies.")
