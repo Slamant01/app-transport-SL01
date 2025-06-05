@@ -31,27 +31,12 @@ def get_distance_duration(dep, arr):
 def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
     if distance_km is None or duree_heure is None:
         return None, None
-
-    # Calcul des pauses : 45 min toutes les 4h30 (4.5h)
-    temps_conduite = duree_heure
-    nb_pauses = int(temps_conduite // 4.5)
-    temps_pause = nb_pauses * 0.75  # 0.75 h = 45 min
-    duree_avec_pauses = temps_conduite + temps_pause
-
-    # Ajout repos journalier de 11h si durée dépasse 9h (conduite + pauses)
-    if duree_avec_pauses > 9:
-        duree_avec_pauses += 11
-
-    # Coefficients CNR
-    CK = 0.583  # €/km
-    CC = 30.33  # €/h
-    CJ = 250.63  # €/jour
-    CG = 2.48   # €/h
-
-    # Calcul coût avec durée ajustée
-    cout_total = distance_km * CK + duree_avec_pauses * CC + CJ + duree_avec_pauses * CG
+    CK = 0.60  # €/km
+    CC = 28.96  # €/h
+    CJ = 211.72  # €/jour
+    CG = 3.05   # €/h
+    cout_total = distance_km * CK + duree_heure * CC + CJ + duree_heure * CG
     cout_palette = cout_total / nb_palettes if nb_palettes > 0 else None
-
     return round(cout_total, 2), round(cout_palette, 2)
 
 st.title("🚚 Estimation des coûts de transport (Frigo LD_EA)")
@@ -86,8 +71,7 @@ with st.form("formulaire_calcul"):
                 - **Adresse départ** : {adresse_dep}  
                 - **Adresse arrivée** : {adresse_arr}  
                 - **Distance** : {dist} km  
-                - **Durée estimée (conduite)** : {duree} h  
-                - **Durée totale (avec pauses/repos)** : {round(duree + int(duree // 4.5)*0.75 + (11 if (duree + int(duree // 4.5)*0.75) > 9 else 0), 2)} h  
+                - **Durée estimée** : {duree} h  
                 - **Coût total** : {cout_total} €  
                 - **Coût par palette** : {cout_palette} €
             """)
@@ -102,6 +86,7 @@ with st.form("formulaire_calcul"):
 
             # Trace de l’itinéraire
             coords_route = route['features'][0]['geometry']['coordinates']
+            # Inverser [lon, lat] -> [lat, lon] pour folium
             coords_route_latlon = [[pt[1], pt[0]] for pt in coords_route]
             folium.PolyLine(coords_route_latlon, color="blue", weight=5, opacity=0.7).add_to(m)
 
