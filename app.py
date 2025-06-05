@@ -62,36 +62,30 @@ with st.form("formulaire"):
     submitted = st.form_submit_button("Calculer")
 
 if submitted:
-    with st.spinner("⏳ Traitement en cours..."):
-        adresse_dep = f"{cp_dep} {ville_dep}, {pays_dep}"
-        adresse_arr = f"{cp_arr} {ville_arr}, {pays_arr}"
-        
-        coord_dep = get_coordinates(adresse_dep)
-        coord_arr = get_coordinates(adresse_arr)
+    adresse_dep = f"{cp_dep} {ville_dep}, {pays_dep}"
+    adresse_arr = f"{cp_arr} {ville_arr}, {pays_arr}"
+    
+    coord_dep = get_coordinates(adresse_dep)
+    coord_arr = get_coordinates(adresse_arr)
 
-        if coord_dep and coord_arr:
-            distance, duree = get_distance_duration(coord_dep, coord_arr)
-            cout_total, cout_palette = calcul_cout_transport(distance, duree, nb_palettes)
+    if coord_dep and coord_arr:
+        distance, duree = get_distance_duration(coord_dep, coord_arr)
+        cout_total, cout_palette = calcul_cout_transport(distance, duree, nb_palettes)
 
-            if distance and duree:
-                st.success("✅ Calcul terminé")
-                st.write(f"📍 **Adresse départ :** {adresse_dep}")
-                st.write(f"📍 **Adresse arrivée :** {adresse_arr}")
-                st.write(f"🛣️ **Distance :** {distance} km")
-                st.write(f"⏱️ **Durée estimée :** {duree} h")
-                st.write(f"💶 **Coût total :** {cout_total} €")
-                st.write(f"📦 **Coût par palette :** {cout_palette} €")
+        st.success("✅ Calcul terminé")
+        st.write(f"📍 **Adresse départ :** {adresse_dep}")
+        st.write(f"📍 **Adresse arrivée :** {adresse_arr}")
+        st.write(f"🛣️ **Distance :** {distance} km")
+        st.write(f"⏱️ **Durée estimée :** {duree} h")
+        st.write(f"💶 **Coût total :** {cout_total} €")
+        st.write(f"📦 **Coût par palette :** {cout_palette} €")
 
-                # Affichage carte
-                st.subheader("🗺️ Visualisation sur carte")
-                lat_centre = (coord_dep[0] + coord_arr[0]) / 2
-                lon_centre = (coord_dep[1] + coord_arr[1]) / 2
-                m = folium.Map(location=[lat_centre, lon_centre], zoom_start=7)
-                folium.Marker(coord_dep, tooltip="Départ", icon=folium.Icon(color="green")).add_to(m)
-                folium.Marker(coord_arr, tooltip="Arrivée", icon=folium.Icon(color="red")).add_to(m)
-                folium.PolyLine([coord_dep, coord_arr], color="blue", weight=4).add_to(m)
-                st_folium(m, height=450)
-            else:
-                st.error("Impossible de calculer la distance ou la durée.")
-        else:
-            st.error("Échec de géocodage. Vérifiez les adresses.")
+        # Affichage de la carte
+        st.subheader("🗺️ Visualisation sur carte")
+        lat_centre = (coord_dep[0] + coord_arr[0]) / 2
+        lon_centre = (coord_dep[1] + coord_arr[1]) / 2
+        m = folium.Map(location=[lat_centre, lon_centre], zoom_start=7)
+        folium.Marker(coord_dep, tooltip="Départ", icon=folium.Icon(color="green")).add_to(m)
+        folium.Marker(coord_arr, tooltip="Arrivée", icon=folium.Icon(color="red")).add_to(m)
+        folium.PolyLine([coord_dep, coord_arr], color="blue", weight=4).add_to(m)
+        st_folium(m, height=450)
