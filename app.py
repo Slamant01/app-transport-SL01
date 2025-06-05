@@ -31,13 +31,28 @@ def get_distance_duration(dep, arr):
 def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
     if distance_km is None or duree_heure is None:
         return None, None
+
+    # Calcul des pauses : 45 min toutes les 4h30 de conduite
+    nb_pauses = int(duree_heure // 4.5)
+    temps_pause = nb_pauses * 0.75  # heures
+
+    # Durée totale incluant pauses
+    duree_totale = duree_heure + temps_pause
+
+    # Repos journalier de 11h si durée totale dépasse 9h
+    if duree_totale > 9:
+        duree_totale += 11
+
+    # Coefficients CNR
     CK = 0.583  # €/km
     CC = 30.33  # €/h
     CJ = 250.63  # €/jour
     CG = 2.48   # €/h
-    cout_total = distance_km * CK + duree_heure * CC + CJ + duree_heure * CG
+
+    cout_total = distance_km * CK + duree_totale * CC + CJ + duree_totale * CG
     cout_palette = cout_total / nb_palettes if nb_palettes > 0 else None
-    return round(cout_total, 2), round(cout_palette, 2)
+
+    return round(cout_total, 2), round(cout_palette, 2), round(duree_totale, 2)
 
 st.title("🚚 Estimation des coûts de transport (Frigo LD_EA)")
 st.subheader("✍️ Calcul manuel d’un transport")
@@ -65,16 +80,20 @@ with st.form("formulaire_calcul"):
             dist, duree, coord_dep, coord_arr, route = get_distance_duration(adresse_dep, adresse_arr)
             cout_total, cout_palette = calcul_cout_transport(dist, duree, nb_palettes_form)
 
-        if dist is not None:
-            st.success("✅ Calcul terminé")
-            st.markdown(f"""
-                - **Adresse départ** : {adresse_dep}  
-                - **Adresse arrivée** : {adresse_arr}  
-                - **Distance** : {dist} km  
-                - **Durée estimée** : {duree} h  
-                - **Coût total** : {cout_total} €  
-                - **Coût par palette** : {cout_palette} €
-            """)
+  cout_total, cout_palette, duree_totale = calcul_cout_transport(dist, duree, nb_palettes_form)
+
+if dist is not None:
+    st.success("✅ Calcul terminé")
+    st.markdown(f"""
+        - **Adresse départ** : {adresse_dep}  
+        - **Adresse arrivée** : {adresse_arr}  
+        - **Distance** : {dist} km  
+        - **Durée estimée (conduite)** : {duree} h  
+        - **Durée totale (avec pauses et repos)** : {duree_totale} h  
+        - **Coût total** : {cout_total} €  
+        - **Coût par palette** : {cout_palette} €
+    """)
+
 
             # Création de la carte folium centrée entre départ et arrivée
             midpoint = [(coord_dep[1] + coord_arr[1]) / 2, (coord_dep[0] + coord_arr[0]) / 2]
