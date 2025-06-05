@@ -46,34 +46,40 @@ def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
 
 st.title("🚚 Estimation des coûts de transport (Frigo LD_EA)")
 
-uploaded_file = st.file_uploader("📁 Importer un fichier CSV", type=["csv"])
+st.subheader("✍️ Calcul manuel d’un transport")
 
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-    st.write("📋 Données importées :", df)
+with st.form("formulaire_calcul"):
+    col1, col2 = st.columns(2)
+    with col1:
+        pays_dep = st.text_input("Pays de départ", value="France")
+        ville_dep = st.text_input("Ville de départ", value="Givors")
+        cp_dep = st.text_input("Code postal départ", value="69700")
+    with col2:
+        pays_arr = st.text_input("Pays d'arrivée", value="France")
+        ville_arr = st.text_input("Ville d'arrivée", value="Le Luc")
+        cp_arr = st.text_input("Code postal arrivée", value="83340")
 
-    resultats = []
-    with st.spinner("🔄 Calcul en cours..."):
-        for index, row in df.iterrows():
-            dep = row['Adresse_Depart']
-            arr = row['Adresse_Arrivee']
-            nb_palettes = row['Nb_Palettes']
-            dist, duree = get_distance_duration(dep, arr)
-            cout_total, cout_par_palette = calcul_cout_transport(dist, duree, nb_palettes)
-            resultats.append({
-                "Adresse_Depart": dep,
-                "Adresse_Arrivee": arr,
-                "Distance_km": dist,
-                "Duree_h": duree,
-                "Nb_Palettes": nb_palettes,
-                "Cout_Total (€)": cout_total,
-                "Cout_par_Palette (€)": cout_par_palette
-            })
-            time.sleep(1.1)  # éviter dépassement de quota API gratuit
+    nb_palettes_form = st.number_input("Nombre de palettes", min_value=1, max_value=33, value=33)
 
-    df_result = pd.DataFrame(resultats)
-    st.success("✅ Calculs terminés")
-    st.dataframe(df_result)
+    submitted = st.form_submit_button("📍 Calculer le transport")
 
-    csv = df_result.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Télécharger les résultats", csv, "resultats_transport.csv", "text/csv")
+    if submitted:
+        adresse_dep = f"{cp_dep} {ville_dep}, {pays_dep}"
+        adresse_arr = f"{cp_arr} {ville_arr}, {pays_arr}"
+
+        with st.spinner("🛰️ Calcul en cours..."):
+            dist, duree = get_distance_duration(adresse_dep, adresse_arr)
+            cout_total, cout_palette = calcul_cout_transport(dist, duree, nb_palettes_form)
+
+        if dist is not None:
+            st.success("✅ Calcul terminé")
+            st.markdown(f"""
+                - **Adresse départ** : {adresse_dep}  
+                - **Adresse arrivée** : {adresse_arr}  
+                - **Distance** : {dist} km  
+                - **Durée estimée** : {duree} h  
+                - **Coût total** : {cout_total} €  
+                - **Coût par palette** : {cout_palette} €
+            """)
+        else:
+            st.error("❌ Adresse non reconnue. Merci de vérifier les informations saisies.")
