@@ -5,30 +5,37 @@ import os
 # Configuration de la page
 st.set_page_config(page_title="Calcul Coûts Transport", layout="centered")
 
-# Clé API OpenRouteService depuis secrets
+# Clé API
 ORS_API_KEY = os.getenv("ORS_API_KEY")
+if not ORS_API_KEY:
+    st.error("🔐 Clé API OpenRouteService manquante dans secrets.")
+    st.stop()
+
 client = openrouteservice.Client(key=ORS_API_KEY)
 
-# Fonction pour obtenir les coordonnées à partir d'une adresse
+# Fonctions
 def get_coordinates(adresse):
     try:
         result = client.pelias_search(text=adresse)
+        if not result['features']:
+            return None
         coords = result['features'][0]['geometry']['coordinates']
-        return coords[::-1]  # retourne (lat, lon)
-    except:
+        return coords[::-1]  # (lat, lon)
+    except Exception as e:
+        st.warning(f"Erreur lors du géocodage de '{adresse}' : {e}")
         return None
 
-# Fonction pour calculer distance et durée
 def get_distance_duration(coord_dep, coord_arr):
     try:
         route = client.directions((coord_dep, coord_arr), profile='driving-hgv', format='geojson')
-        distance_km = route['features'][0]['properties']['segments'][0]['distance'] / 1000
-        duration_h = route['features'][0]['properties']['segments'][0]['duration'] / 3600
+        segment = route['features'][0]['properties']['segments'][0]
+        distance_km = segment['distance'] / 1000
+        duration_h = segment['duration'] / 3600
         return round(distance_km, 2), round(duration_h, 2)
-    except:
+    except Exception as e:
+        st.warning(f"Erreur lors du calcul de l'itinéraire : {e}")
         return None, None
 
-# Fonction pour calculer le coût de transport
 def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
     if distance_km is None or duree_heure is None:
         return None, None
@@ -40,10 +47,9 @@ def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
     cout_palette = cout_total / nb_palettes if nb_palettes > 0 else None
     return round(cout_total, 2), round(cout_palette, 2)
 
-# Titre
+# Interface utilisateur
 st.title("🚛 Estimation des Coûts de Transport (Frigo LD_EA)")
 
-# Formulaire de saisie
 with st.form("formulaire"):
     st.subheader("📍 Adresse de départ")
     pays_dep = st.text_input("Pays de départ", "France")
@@ -55,33 +61,37 @@ with st.form("formulaire"):
     ville_arr = st.text_input("Ville d'arrivée", "Le Luc")
     cp_arr = st.text_input("Code postal d'arrivée", "83340")
 
-    st.subheader("📦 Données de transport")
+    st.subheader("📦 Transport")
     nb_palettes = st.number_input("Nombre de palettes", min_value=1, max_value=33, value=33)
 
     submitted = st.form_submit_button("🔍 Calculer")
 
-# Traitement une fois le formulaire soumis
 if submitted:
-    with st.spinner("⏳ Traitement en cours..."):
+    with st.spinner("🧭 Calcul en cours..."):
         adresse_dep = f"{cp_dep} {ville_dep}, {pays_dep}"
         adresse_arr = f"{cp_arr} {ville_arr}, {pays_arr}"
-        
+
+        st.write(f"🔍 Adresse départ : `{adresse_dep}`")
+        st.write(f"🔍 Adresse arrivée : `{adresse_arr}`")
+
         coord_dep = get_coordinates(adresse_dep)
         coord_arr = get_coordinates(adresse_arr)
 
-        if coord_dep and coord_arr:
-            distance, duree = get_distance_duration(coord_dep, coord_arr)
-            cout_total, cout_palette = calcul_cout_transport(distance, duree, nb_palettes)
-
-            if distance and duree:
-                st.success("✅ Calcul terminé")
-                st.write(f"📍 **Départ :** {adresse_dep}")
-                st.write(f"🏁 **Arrivée :** {adresse_arr}")
-                st.write(f"🛣️ **Distance :** {distance} km")
-                st.write(f"⏱️ **Durée estimée :** {duree} h")
-                st.write(f"💶 **Coût total :** {cout_total} €")
-                st.write(f"📦 **Coût par palette :** {cout_palette} €")
-            else:
-                st.error("❌ Impossible de calculer la distance ou la durée.")
+        if coord_dep is None:
+            st.error(f"❌ Adresse de départ non localisée : {adresse_dep}")
+        elif coord_arr is None:
+            st.error(f"❌ Adresse d’arrivée non localisée : {adresse_arr}")
         else:
-            st.error("❌ Échec de géocodage. Vérifiez les adresses saisies.")
+            distance, duree = get_distance_duration(coord_dep, coord_arr)
+            if distance is None or duree is None:
+                st.error("❌ Impossible de calculer la distance ou la durée.")
+            else:
+                cout_total, cout_palette = calcul_cout_transport(distance, duree, nb_palettes)
+
+                st.success("✅ Résultat du calcul")
+                st.markdown(f"""
+                - **Distance :** {distance} km  
+                - **Durée :** {duree} h  
+                - **Coût total :** {cout_total} €  
+                - **Coût par palette :** {cout_palette} €
+                """)
