@@ -2,21 +2,20 @@ import streamlit as st
 import openrouteservice
 import pandas as pd
 import time
-import os
+import folium
+from streamlit.components.v1 import html
 
 st.set_page_config(page_title="Calcul Coûts Transport", layout="wide")
 
 # Clé API OpenRouteService (à mettre dans Secrets)
+import os
 ORS_API_KEY = os.getenv("ORS_API_KEY")
 client = openrouteservice.Client(key=ORS_API_KEY)
 
 def get_distance_duration(dep, arr):
     try:
-        # Recherche des coordonnées
-        coord_dep = client.pelias_search(text=dep)['features'][0]['geometry']['coordinates']  # [lon, lat]
-        coord_arr = client.pelias_search(text=arr)['features'][0]['geometry']['coordinates']  # [lon, lat]
-
-        # Appel de l’API directions
+        coord_dep = client.pelias_search(text=dep)['features'][0]['geometry']['coordinates']
+        coord_arr = client.pelias_search(text=arr)['features'][0]['geometry']['coordinates']
         route = client.directions(
             coordinates=[coord_dep, coord_arr],
             profile='driving-hgv',
@@ -24,10 +23,10 @@ def get_distance_duration(dep, arr):
         )
         distance_km = route['features'][0]['properties']['segments'][0]['distance'] / 1000
         duration_h = route['features'][0]['properties']['segments'][0]['duration'] / 3600
-        return round(distance_km, 2), round(duration_h, 2)
+        return round(distance_km, 2), round(duration_h, 2), coord_dep, coord_arr, route
     except Exception as e:
         print("Erreur OpenRouteService :", e)
-        return None, None
+        return None, None, None, None, None
 
 def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
     if distance_km is None or duree_heure is None:
@@ -63,20 +62,36 @@ with st.form("formulaire_calcul"):
         adresse_arr = f"{cp_arr} {ville_arr}, {pays_arr}"
 
         with st.spinner("🛰️ Calcul en cours..."):
-            dist, duree = get_distance_duration(adresse_dep, adresse_arr)
+            dist, duree, coord_dep, coord_arr, route = get_distance_duration(adresse_dep, adresse_arr)
             cout_total, cout_palette = calcul_cout_transport(dist, duree, nb_palettes_form)
 
         if dist is not None:
-            duree_vitesse_moyenne = round(dist / 75, 2)  # recalcul durée à 75 km/h
             st.success("✅ Calcul terminé")
             st.markdown(f"""
                 - **Adresse départ** : {adresse_dep}  
                 - **Adresse arrivée** : {adresse_arr}  
                 - **Distance** : {dist} km  
-                - **Durée estimée (API)** : {duree} h  
-                - **Durée recalculée (vitesse moyenne 75 km/h)** : {duree_vitesse_moyenne} h  
+                - **Durée estimée** : {duree} h  
                 - **Coût total** : {cout_total} €  
                 - **Coût par palette** : {cout_palette} €
             """)
+
+            # Création de la carte folium centrée entre départ et arrivée
+            midpoint = [(coord_dep[1] + coord_arr[1]) / 2, (coord_dep[0] + coord_arr[0]) / 2]
+            m = folium.Map(location=midpoint, zoom_start=7)
+
+            # Ajout des marqueurs départ et arrivée
+            folium.Marker([coord_dep[1], coord_dep[0]], tooltip="Départ", icon=folium.Icon(color='green')).add_to(m)
+            folium.Marker([coord_arr[1], coord_arr[0]], tooltip="Arrivée", icon=folium.Icon(color='red')).add_to(m)
+
+            # Trace de l’itinéraire
+            coords_route = route['features'][0]['geometry']['coordinates']
+            # Inverser [lon, lat] -> [lat, lon] pour folium
+            coords_route_latlon = [[pt[1], pt[0]] for pt in coords_route]
+            folium.PolyLine(coords_route_latlon, color="blue", weight=5, opacity=0.7).add_to(m)
+
+            # Affichage de la carte dans Streamlit
+            html_map = m._repr_html_()
+            html(html_map, height=500)
         else:
             st.error("❌ Adresse non reconnue. Merci de vérifier les informations saisies.")
