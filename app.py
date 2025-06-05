@@ -1,17 +1,17 @@
 import streamlit as st
 import openrouteservice
 import pandas as pd
-import time
 import folium
 from streamlit.components.v1 import html
+import os
 
 st.set_page_config(page_title="Calcul Coûts Transport", layout="wide")
 
-# Clé API OpenRouteService (à mettre dans Secrets)
-import os
+# Clé API OpenRouteService
 ORS_API_KEY = os.getenv("ORS_API_KEY")
 client = openrouteservice.Client(key=ORS_API_KEY)
 
+# Fonction de calcul distance, durée, coordonnées et itinéraire
 def get_distance_duration(dep, arr):
     try:
         coord_dep = client.pelias_search(text=dep)['features'][0]['geometry']['coordinates']
@@ -28,17 +28,18 @@ def get_distance_duration(dep, arr):
         print("Erreur OpenRouteService :", e)
         return None, None, None, None, None
 
+# Fonction de calcul des coûts
 def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
     if distance_km is None or duree_heure is None:
         return None, None
-    CK = 0.60  # €/km
-    CC = 28.96  # €/h
-    CJ = 260.35  # €/jour
-    CG = 3.05   # €/h
-    cout_total = distance_km * CK + duree_heure * CC + CJ + duree_heure * CG
+    CK = 0.585   # €/km
+    CC = 28.11   # €/h
+    CJ = 211.72  # €/jour
+    cout_total = distance_km * CK + duree_heure * CC + CJ
     cout_palette = cout_total / nb_palettes if nb_palettes > 0 else None
     return round(cout_total, 2), round(cout_palette, 2)
 
+# Interface utilisateur Streamlit
 st.title("🚚 Estimation des coûts de transport (Frigo LD_EA)")
 st.subheader("✍️ Calcul manuel d’un transport")
 
@@ -71,26 +72,25 @@ with st.form("formulaire_calcul"):
                 - **Adresse départ** : {adresse_dep}  
                 - **Adresse arrivée** : {adresse_arr}  
                 - **Distance** : {dist} km  
-                - **Durée estimée** : {duree} h  
+                - **Durée estimée (API)** : {duree} h  
+                - **Durée estimée à 75 km/h** : {round(dist / 75, 2)} h  
                 - **Coût total** : {cout_total} €  
                 - **Coût par palette** : {cout_palette} €
             """)
 
-            # Création de la carte folium centrée entre départ et arrivée
+            # Création de la carte folium centrée
             midpoint = [(coord_dep[1] + coord_arr[1]) / 2, (coord_dep[0] + coord_arr[0]) / 2]
             m = folium.Map(location=midpoint, zoom_start=7)
 
-            # Ajout des marqueurs départ et arrivée
+            # Marqueurs
             folium.Marker([coord_dep[1], coord_dep[0]], tooltip="Départ", icon=folium.Icon(color='green')).add_to(m)
             folium.Marker([coord_arr[1], coord_arr[0]], tooltip="Arrivée", icon=folium.Icon(color='red')).add_to(m)
 
-            # Trace de l’itinéraire
+            # Itinéraire
             coords_route = route['features'][0]['geometry']['coordinates']
-            # Inverser [lon, lat] -> [lat, lon] pour folium
             coords_route_latlon = [[pt[1], pt[0]] for pt in coords_route]
             folium.PolyLine(coords_route_latlon, color="blue", weight=5, opacity=0.7).add_to(m)
 
-            # Affichage de la carte dans Streamlit
             html_map = m._repr_html_()
             html(html_map, height=500)
         else:
