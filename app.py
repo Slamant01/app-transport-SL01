@@ -30,18 +30,20 @@ def get_distance_duration(dep, arr):
 
 def ajouter_temps_pause_et_repos(duree_heure):
     """
-    Ajoute les temps de pause et repos réglementaires :
+    Ajoute les temps de pause, repos, chargement et déchargement :
     - 45 min de pause toutes les 4h30 de conduite
-    - 11h de repos journalier si durée totale > 9h
+    - 11h de repos si durée > 9h
+    - 45 min de chargement + 45 min de déchargement (1.5h)
     """
     temps_pause = 0
     temps_repos = 0
+    temps_chargement_dechargement = 1.5  # 45 min + 45 min
 
     # Pauses : 45 min (0.75h) toutes les 4.5h de conduite
     nb_pauses = int(duree_heure // 4.5)
     temps_pause = nb_pauses * 0.75
 
-    duree_totale = duree_heure + temps_pause
+    duree_totale = duree_heure + temps_pause + temps_chargement_dechargement
 
     # Repos journalier : si durée totale > 9h, ajouter 11h de repos
     if duree_totale > 9:
@@ -99,7 +101,7 @@ with st.form("formulaire_calcul"):
                 - **Adresse arrivée** : {adresse_arr}  
                 - **Distance** : {dist} km  
                 - **Durée estimée (conduite)** : {duree} h  
-                - **Durée totale (avec pauses/repos)** : {duree_totale} h  
+                - **Durée totale (avec pauses, chargement/déchargement, repos)** : {duree_totale} h  
                 - **Coût total** : {cout_total} €  
                 - **Coût par palette** : {cout_palette} €
             """)
