@@ -1,13 +1,14 @@
 import streamlit as st
 import openrouteservice
 import pandas as pd
+import time
 import folium
 from streamlit.components.v1 import html
 import os
+import math
 
 st.set_page_config(page_title="Calcul Coûts Transport", layout="wide")
 
-# Clé API OpenRouteService (à mettre dans Secrets)
 ORS_API_KEY = os.getenv("ORS_API_KEY")
 client = openrouteservice.Client(key=ORS_API_KEY)
 
@@ -28,27 +29,11 @@ def get_distance_duration(dep, arr):
         return None, None, None, None, None
 
 def ajouter_temps_pause_et_repos(duree_heure):
-    """
-    Ajoute les temps de pause, repos, chargement et déchargement :
-    - 45 min de pause toutes les 4h30 de conduite
-    - 11h de repos si durée > 9h
-    - 45 min de chargement + 45 min de déchargement (1.5h)
-    """
-    temps_pause = 0
-    temps_repos = 0
-    temps_chargement_dechargement = 1.5  # 45 min + 45 min
-
-    # Pauses : 45 min (0.75h) toutes les 4.5h de conduite
-    nb_pauses = int(duree_heure // 4.5)
-    temps_pause = nb_pauses * 0.75
-
+    temps_pause = int(duree_heure // 4.5) * 0.75
+    temps_chargement_dechargement = 1.5
     duree_totale = duree_heure + temps_pause + temps_chargement_dechargement
-
-    # Repos journalier : si durée totale > 9h, ajouter 11h de repos
     if duree_totale > 9:
-        temps_repos = 11
-        duree_totale += temps_repos
-
+        duree_totale += 11
     return round(duree_totale, 2)
 
 def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
@@ -61,19 +46,23 @@ def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
     CG = 2.48   # €/h
 
     duree_totale = ajouter_temps_pause_et_repos(duree_heure)
-
     cout_total = distance_km * CK + duree_totale * CC + CJ + duree_totale * CG
     cout_palette = cout_total / nb_palettes if nb_palettes > 0 else None
 
     return round(cout_total, 2), round(cout_palette, 2), duree_totale
 
-# Facteurs de dégressivité
-DEGRESSIVITE_FACTEURS = {
-    1: 1.00, 2: 0.88, 3: 0.80, 4: 0.74, 5: 0.70, 6: 0.66, 7: 0.63, 8: 0.60, 9: 0.58, 10: 0.56,
-    11: 0.54, 12: 0.52, 13: 0.50, 14: 0.49, 15: 0.48, 16: 0.47, 17: 0.46, 18: 0.45, 19: 0.44, 20: 0.43,
-    21: 0.42, 22: 0.41, 23: 0.40, 24: 0.39, 25: 0.38, 26: 0.37, 27: 0.36, 28: 0.35, 29: 0.34, 30: 0.33,
-    31: 0.32, 32: 0.31, 33: 0.30
-}
+def generer_tableau_degressif(cout_total):
+    data = []
+    c = 0.3  # asymptote
+    b = 0.08  # pente
+    base = cout_total / 33  # prix de base pour 33 palettes
+
+    for n in range(1, 34):
+        k = c + (1 - c) * math.exp(-b * (n - 1))
+        cout_unitaire = base / k
+        data.append({"Nombre de palettes": n, "Coût unitaire (€)": round(cout_unitaire, 2)})
+    
+    return pd.DataFrame(data)
 
 st.title("🚚 Estimation des coûts de transport (Frigo LD_EA)")
 st.subheader("✍️ Calcul manuel d’un transport")
@@ -110,34 +99,22 @@ with st.form("formulaire_calcul"):
                 - **Durée estimée (conduite)** : {duree} h  
                 - **Durée totale (avec pauses, chargement/déchargement, repos)** : {duree_totale} h  
                 - **Coût total** : {cout_total} €  
-                - **Coût par palette** : {cout_palette} €
+                - **Coût par palette (x{nb_palettes_form})** : {cout_palette} €
             """)
 
-            # Calcul dégressivité
-            cout_unitaires = []
-            for n in range(1, 34):
-                cout_unitaire = (cout_total / n) * DEGRESSIVITE_FACTEURS[n]
-                cout_unitaires.append(round(cout_unitaire, 2))
+            # 🔢 Tableau de dégressivité
+            st.subheader("📊 Coût unitaire selon nombre de palettes (dégressivité exponentielle)")
+            df_degressivite = generer_tableau_degressif(cout_total)
+            st.dataframe(df_degressivite, use_container_width=True)
 
-            data_deg = {
-                "Nombre de palettes": list(range(1, 34)),
-                "Coût unitaire (€)": cout_unitaires
-            }
-            df_deg = pd.DataFrame(data_deg)
-            st.subheader("📊 Coût unitaire selon nombre de palettes (avec dégressivité)")
-            st.dataframe(df_deg)
-
+            # 🗺️ Carte interactive
             midpoint = [(coord_dep[1] + coord_arr[1]) / 2, (coord_dep[0] + coord_arr[0]) / 2]
             m = folium.Map(location=midpoint, zoom_start=7)
-
             folium.Marker([coord_dep[1], coord_dep[0]], tooltip="Départ", icon=folium.Icon(color='green')).add_to(m)
             folium.Marker([coord_arr[1], coord_arr[0]], tooltip="Arrivée", icon=folium.Icon(color='red')).add_to(m)
-
             coords_route = route['features'][0]['geometry']['coordinates']
             coords_route_latlon = [[pt[1], pt[0]] for pt in coords_route]
             folium.PolyLine(coords_route_latlon, color="blue", weight=5, opacity=0.7).add_to(m)
-
-            html_map = m._repr_html_()
-            html(html_map, height=500)
+            html(html_map := m._repr_html_(), height=500)
         else:
             st.error("❌ Adresse non reconnue. Merci de vérifier les informations saisies.")
