@@ -67,6 +67,7 @@ def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
 
     return round(cout_total, 2), round(cout_palette, 2), duree_totale
 
+# Facteurs de dégressivité
 DEGRESSIVITE_FACTEURS = {
     1: 1.00, 2: 0.88, 3: 0.80, 4: 0.74, 5: 0.70, 6: 0.66, 7: 0.63, 8: 0.60, 9: 0.58, 10: 0.56,
     11: 0.54, 12: 0.52, 13: 0.50, 14: 0.49, 15: 0.48, 16: 0.47, 17: 0.46, 18: 0.45, 19: 0.44, 20: 0.43,
@@ -112,13 +113,15 @@ with st.form("formulaire_calcul"):
                 - **Coût par palette** : {cout_palette} €
             """)
 
-            # Calcul du tableau de dégressivité
-            cout_unit_33 = cout_total / 33
+            # Calcul dégressivité
+            cout_unitaires = []
+            for n in range(1, 34):
+                cout_unitaire = (cout_total / n) * DEGRESSIVITE_FACTEURS[n]
+                cout_unitaires.append(round(cout_unitaire, 2))
+
             data_deg = {
                 "Nombre de palettes": list(range(1, 34)),
-                "Coût unitaire (€)": [
-                    round(cout_unit_33 * (1 / DEGRESSIVITE_FACTEURS[n]), 2) for n in range(1, 34)
-                ]
+                "Coût unitaire (€)": cout_unitaires
             }
             df_deg = pd.DataFrame(data_deg)
             st.subheader("📊 Coût unitaire selon nombre de palettes (avec dégressivité)")
