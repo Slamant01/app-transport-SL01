@@ -8,9 +8,17 @@ import os
 
 st.set_page_config(page_title="Calcul Coûts Transport", layout="wide")
 
-# Clé API OpenRouteService (à mettre dans Secrets)
+# Clé API OpenRouteService
 ORS_API_KEY = os.getenv("ORS_API_KEY")
 client = openrouteservice.Client(key=ORS_API_KEY)
+
+# Tableau de dégressivité : palette => facteur k
+DEGRESSIVITE_FACTEURS = {
+    1: 1.00, 2: 0.88, 3: 0.80, 4: 0.74, 5: 0.70, 6: 0.66, 7: 0.63, 8: 0.60, 9: 0.58, 10: 0.56,
+    11: 0.54, 12: 0.52, 13: 0.50, 14: 0.49, 15: 0.48, 16: 0.47, 17: 0.46, 18: 0.45, 19: 0.44, 20: 0.43,
+    21: 0.42, 22: 0.41, 23: 0.40, 24: 0.39, 25: 0.38, 26: 0.37, 27: 0.36, 28: 0.35, 29: 0.34, 30: 0.33,
+    31: 0.32, 32: 0.31, 33: 0.30
+}
 
 def get_distance_duration(dep, arr):
     try:
@@ -29,44 +37,31 @@ def get_distance_duration(dep, arr):
         return None, None, None, None, None
 
 def ajouter_temps_pause_et_repos(duree_heure):
-    """
-    Ajoute les temps de pause, repos, chargement et déchargement :
-    - 45 min de pause toutes les 4h30 de conduite
-    - 11h de repos si durée > 9h
-    - 45 min de chargement + 45 min de déchargement (1.5h)
-    """
     temps_pause = 0
     temps_repos = 0
     temps_chargement_dechargement = 1.5  # 45 min + 45 min
 
-    # Pauses : 45 min (0.75h) toutes les 4.5h de conduite
     nb_pauses = int(duree_heure // 4.5)
     temps_pause = nb_pauses * 0.75
 
     duree_totale = duree_heure + temps_pause + temps_chargement_dechargement
 
-    # Repos journalier : si durée totale > 9h, ajouter 11h de repos
     if duree_totale > 9:
         temps_repos = 11
         duree_totale += temps_repos
 
     return round(duree_totale, 2)
 
-def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
-    if distance_km is None or duree_heure is None:
-        return None, None, None
-
+def calcul_cout_transport(distance_km, duree_heure):
     CK = 0.583  # €/km
     CC = 30.33  # €/h
     CJ = 250.63  # €/jour
     CG = 2.48   # €/h
 
     duree_totale = ajouter_temps_pause_et_repos(duree_heure)
-
     cout_total = distance_km * CK + duree_totale * CC + CJ + duree_totale * CG
-    cout_palette = cout_total / nb_palettes if nb_palettes > 0 else None
 
-    return round(cout_total, 2), round(cout_palette, 2), duree_totale
+    return round(cout_total, 2), duree_totale
 
 st.title("🚚 Estimation des coûts de transport (Frigo LD_EA)")
 st.subheader("✍️ Calcul manuel d’un transport")
@@ -86,37 +81,51 @@ with st.form("formulaire_calcul"):
 
     submitted = st.form_submit_button("📍 Calculer le transport")
 
-    if submitted:
-        adresse_dep = f"{cp_dep} {ville_dep}, {pays_dep}"
-        adresse_arr = f"{cp_arr} {ville_arr}, {pays_arr}"
+if submitted:
+    adresse_dep = f"{cp_dep} {ville_dep}, {pays_dep}"
+    adresse_arr = f"{cp_arr} {ville_arr}, {pays_arr}"
 
-        with st.spinner("🛰️ Calcul en cours..."):
-            dist, duree, coord_dep, coord_arr, route = get_distance_duration(adresse_dep, adresse_arr)
-            cout_total, cout_palette, duree_totale = calcul_cout_transport(dist, duree, nb_palettes_form)
+    with st.spinner("🛰️ Calcul en cours..."):
+        dist, duree, coord_dep, coord_arr, route = get_distance_duration(adresse_dep, adresse_arr)
+        cout_total, duree_totale = calcul_cout_transport(dist, duree)
 
-        if dist is not None:
-            st.success("✅ Calcul terminé")
-            st.markdown(f"""
-                - **Adresse départ** : {adresse_dep}  
-                - **Adresse arrivée** : {adresse_arr}  
-                - **Distance** : {dist} km  
-                - **Durée estimée (conduite)** : {duree} h  
-                - **Durée totale (avec pauses, chargement/déchargement, repos)** : {duree_totale} h  
-                - **Coût total** : {cout_total} €  
-                - **Coût par palette** : {cout_palette} €
-            """)
+    if dist is not None:
+        st.success("✅ Calcul terminé")
+        cout_palette_saisie = round((cout_total * DEGRESSIVITE_FACTEURS[nb_palettes_form]) / nb_palettes_form, 2)
 
-            midpoint = [(coord_dep[1] + coord_arr[1]) / 2, (coord_dep[0] + coord_arr[0]) / 2]
-            m = folium.Map(location=midpoint, zoom_start=7)
+        st.markdown(f"""
+            - **Adresse départ** : {adresse_dep}  
+            - **Adresse arrivée** : {adresse_arr}  
+            - **Distance** : {dist} km  
+            - **Durée estimée (conduite)** : {duree} h  
+            - **Durée totale (avec pauses, chargement/déchargement, repos)** : {duree_totale} h  
+            - **Coût total** : {cout_total} €  
+            - **Coût par palette ({nb_palettes_form})** : {cout_palette_saisie} €  
+        """)
 
-            folium.Marker([coord_dep[1], coord_dep[0]], tooltip="Départ", icon=folium.Icon(color='green')).add_to(m)
-            folium.Marker([coord_arr[1], coord_arr[0]], tooltip="Arrivée", icon=folium.Icon(color='red')).add_to(m)
+        # Tableau de coût par palette unitaire (1 à 33)
+        data = {
+            "Nb Palettes": list(range(1, 34)),
+            "Facteur k": [DEGRESSIVITE_FACTEURS[n] for n in range(1, 34)],
+            "Coût palette unitaire (€)": [
+                round((cout_total * DEGRESSIVITE_FACTEURS[n]) / n, 2) for n in range(1, 34)
+            ]
+        }
+        df_degressivite = pd.DataFrame(data)
+        st.dataframe(df_degressivite, use_container_width=True)
 
-            coords_route = route['features'][0]['geometry']['coordinates']
-            coords_route_latlon = [[pt[1], pt[0]] for pt in coords_route]
-            folium.PolyLine(coords_route_latlon, color="blue", weight=5, opacity=0.7).add_to(m)
+        # Carte
+        midpoint = [(coord_dep[1] + coord_arr[1]) / 2, (coord_dep[0] + coord_arr[0]) / 2]
+        m = folium.Map(location=midpoint, zoom_start=7)
 
-            html_map = m._repr_html_()
-            html(html_map, height=500)
-        else:
-            st.error("❌ Adresse non reconnue. Merci de vérifier les informations saisies.")
+        folium.Marker([coord_dep[1], coord_dep[0]], tooltip="Départ", icon=folium.Icon(color='green')).add_to(m)
+        folium.Marker([coord_arr[1], coord_arr[0]], tooltip="Arrivée", icon=folium.Icon(color='red')).add_to(m)
+
+        coords_route = route['features'][0]['geometry']['coordinates']
+        coords_route_latlon = [[pt[1], pt[0]] for pt in coords_route]
+        folium.PolyLine(coords_route_latlon, color="blue", weight=5, opacity=0.7).add_to(m)
+
+        html_map = m._repr_html_()
+        html(html_map, height=500)
+    else:
+        st.error("❌ Adresse non reconnue. Merci de vérifier les informations saisies.")
