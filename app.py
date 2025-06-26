@@ -11,13 +11,6 @@ st.set_page_config(page_title="Calcul Coûts Transport", layout="wide")
 ORS_API_KEY = os.getenv("ORS_API_KEY")
 client = openrouteservice.Client(key=ORS_API_KEY)
 
-DEGRESSIVITE_FACTEURS = {
-    1: 1.00, 2: 0.88, 3: 0.80, 4: 0.74, 5: 0.70, 6: 0.66, 7: 0.63, 8: 0.60, 9: 0.58, 10: 0.56,
-    11: 0.54, 12: 0.52, 13: 0.50, 14: 0.49, 15: 0.48, 16: 0.47, 17: 0.46, 18: 0.45, 19: 0.44, 20: 0.43,
-    21: 0.42, 22: 0.41, 23: 0.40, 24: 0.39, 25: 0.38, 26: 0.37, 27: 0.36, 28: 0.35, 29: 0.34, 30: 0.33,
-    31: 0.32, 32: 0.31, 33: 0.30
-}
-
 def get_distance_duration(dep, arr):
     try:
         coord_dep = client.pelias_search(text=dep)['features'][0]['geometry']['coordinates']
@@ -74,6 +67,13 @@ def calcul_cout_transport(distance_km, duree_heure, nb_palettes):
 
     return round(cout_total, 2), round(cout_palette, 2), duree_totale
 
+DEGRESSIVITE_FACTEURS = {
+    1: 1.00, 2: 0.88, 3: 0.80, 4: 0.74, 5: 0.70, 6: 0.66, 7: 0.63, 8: 0.60, 9: 0.58, 10: 0.56,
+    11: 0.54, 12: 0.52, 13: 0.50, 14: 0.49, 15: 0.48, 16: 0.47, 17: 0.46, 18: 0.45, 19: 0.44, 20: 0.43,
+    21: 0.42, 22: 0.41, 23: 0.40, 24: 0.39, 25: 0.38, 26: 0.37, 27: 0.36, 28: 0.35, 29: 0.34, 30: 0.33,
+    31: 0.32, 32: 0.31, 33: 0.30
+}
+
 st.title("🚚 Estimation des coûts de transport (Frigo LD_EA)")
 st.subheader("✍️ Calcul manuel d’un transport")
 
@@ -112,17 +112,16 @@ with st.form("formulaire_calcul"):
                 - **Coût par palette** : {cout_palette} €
             """)
 
-            # Calcul de la dégressivité du coût unitaire
+            # Calcul du tableau de dégressivité
             cout_unit_33 = cout_total / 33
             data_deg = {
                 "Nombre de palettes": list(range(1, 34)),
                 "Coût unitaire (€)": [
-                    round(cout_unit_33 / DEGRESSIVITE_FACTEURS[n], 2) for n in range(1, 34)
+                    round(cout_unit_33 * (1 / DEGRESSIVITE_FACTEURS[n]), 2) for n in range(1, 34)
                 ]
             }
             df_deg = pd.DataFrame(data_deg)
-
-            st.markdown("### Tableau de dégressivité du coût unitaire par palette")
+            st.subheader("📊 Coût unitaire selon nombre de palettes (avec dégressivité)")
             st.dataframe(df_deg)
 
             midpoint = [(coord_dep[1] + coord_arr[1]) / 2, (coord_dep[0] + coord_arr[0]) / 2]
