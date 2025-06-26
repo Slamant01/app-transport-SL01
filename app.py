@@ -11,6 +11,13 @@ st.set_page_config(page_title="Calcul Coûts Transport", layout="wide")
 ORS_API_KEY = os.getenv("ORS_API_KEY")
 client = openrouteservice.Client(key=ORS_API_KEY)
 
+DEGRESSIVITE_FACTEURS = {
+    1: 1.00, 2: 0.88, 3: 0.80, 4: 0.74, 5: 0.70, 6: 0.66, 7: 0.63, 8: 0.60, 9: 0.58, 10: 0.56,
+    11: 0.54, 12: 0.52, 13: 0.50, 14: 0.49, 15: 0.48, 16: 0.47, 17: 0.46, 18: 0.45, 19: 0.44, 20: 0.43,
+    21: 0.42, 22: 0.41, 23: 0.40, 24: 0.39, 25: 0.38, 26: 0.37, 27: 0.36, 28: 0.35, 29: 0.34, 30: 0.33,
+    31: 0.32, 32: 0.31, 33: 0.30
+}
+
 def get_distance_duration(dep, arr):
     try:
         coord_dep = client.pelias_search(text=dep)['features'][0]['geometry']['coordinates']
@@ -105,23 +112,14 @@ with st.form("formulaire_calcul"):
                 - **Coût par palette** : {cout_palette} €
             """)
 
-            # Table de dégressivité (facteur k)
-            DEGRESSIVITE_FACTEURS = {
-                1: 1.00, 2: 0.88, 3: 0.80, 4: 0.74, 5: 0.70, 6: 0.66, 7: 0.63, 8: 0.60, 9: 0.58, 10: 0.56,
-                11: 0.54, 12: 0.52, 13: 0.50, 14: 0.49, 15: 0.48, 16: 0.47, 17: 0.46, 18: 0.45, 19: 0.44, 20: 0.43,
-                21: 0.42, 22: 0.41, 23: 0.40, 24: 0.39, 25: 0.38, 26: 0.37, 27: 0.36, 28: 0.35, 29: 0.34, 30: 0.33,
-                31: 0.32, 32: 0.31, 33: 0.30
-            }
-
-            # Création du DataFrame du tableau de dégressivité
+            # Calcul de la dégressivité du coût unitaire
+            cout_unit_33 = cout_total / 33
             data_deg = {
                 "Nombre de palettes": list(range(1, 34)),
-                "Facteur k": [DEGRESSIVITE_FACTEURS[n] for n in range(1, 34)],
                 "Coût unitaire (€)": [
-                    round((cout_total * DEGRESSIVITE_FACTEURS[n]) / n, 2) for n in range(1, 34)
+                    round(cout_unit_33 / DEGRESSIVITE_FACTEURS[n], 2) for n in range(1, 34)
                 ]
             }
-
             df_deg = pd.DataFrame(data_deg)
 
             st.markdown("### Tableau de dégressivité du coût unitaire par palette")
